@@ -109,7 +109,7 @@ bool ELM327::initializeELM(const char &protocol, const byte &dataTimeout)
 	}
 
 	sendCommand_Blocking(RESET_ALL);
-	if (strstr(payload, "OK") != NULL) {
+	if (strstr(payload, "ELM") != NULL) {
 		if (debugMode) {
 			Serial.println(F("Init Step 2 done"));
 		}
@@ -2168,12 +2168,9 @@ void ELM327::sendCommand(const char *cmd)
         Serial.println(cmd);
     }
 
-<<<<<<< HEAD
     elm_port->print(cmd);
     elm_port->print('\r');
-=======
 	elm_port->flush();
->>>>>>> 6ff339d (Write command with flush)
 
     // prime the timeout timer
     previousTime = millis();
