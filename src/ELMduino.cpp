@@ -2290,8 +2290,8 @@ void ELM327::sendCommand(const char *cmd)
 		Serial.println(cmd);
 	}
 
-	elm_port->print(cmd);
-	elm_port->print('\r');
+	elm_port->print("%s\r",cmd);
+	elm_port->flush();
 
 	// prime the timeout timer
 	previousTime = millis();
