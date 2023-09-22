@@ -83,6 +83,19 @@ bool ELM327::initializeELM(const char &protocol, const byte &dataTimeout)
 
 	sendCommand_Blocking(SET_ALL_TO_DEFAULTS);
 	if (strstr(payload, "OK") != NULL) {
+		if (debugMode) {
+			Serial.println(F("Init Step 1 done"));
+		}
+	} else {
+		delay(100);
+	}
+
+	sendCommand_Blocking(SET_ALL_TO_DEFAULTS);
+	if (strstr(payload, "OK") != NULL) {
+		if (debugMode) {
+			Serial.println(F("Init Step 1 done"));
+		}
+	} else {
 		delay(100);
 	}
 
@@ -96,7 +109,7 @@ bool ELM327::initializeELM(const char &protocol, const byte &dataTimeout)
 	}
 
 	sendCommand_Blocking(RESET_ALL);
-	if (strstr(payload, "ELM") != NULL) {
+	if (strstr(payload, "OK") != NULL) {
 		if (debugMode) {
 			Serial.println(F("Init Step 2 done"));
 		}
