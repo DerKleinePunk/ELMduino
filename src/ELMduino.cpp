@@ -2172,7 +2172,6 @@ void ELM327::sendCommand(const char *cmd)
     elm_port->print(cmd);
     elm_port->print('\r');
 =======
-	elm_port->print("%s\r",cmd);
 	elm_port->flush();
 >>>>>>> 6ff339d (Write command with flush)
 
