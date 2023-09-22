@@ -37,9 +37,4 @@
 *.exe
 *.out
 *.app
-include/README
-lib/README
-test/README
 .vscode/extensions.json
-platformio.ini
-.gitignore
