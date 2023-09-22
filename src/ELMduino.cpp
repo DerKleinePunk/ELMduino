@@ -89,11 +89,21 @@ bool ELM327::initializeELM(const char &protocol, const byte &dataTimeout)
 
 	sendCommand_Blocking(SET_ALL_TO_DEFAULTS);
 	if (strstr(payload, "OK") != NULL) {
+		if (debugMode) {
+			Serial.println(F("Init Step 1 done"));
+		}
+	} else {
 		delay(100);
 	}
 
 	sendCommand_Blocking(RESET_ALL);
-	delay(100);
+	if (strstr(payload, "OK") != NULL) {
+		if (debugMode) {
+			Serial.println(F("Init Step 2 done"));
+		}
+	} else {
+		delay(100);
+	}
 
 	sendCommand_Blocking(ECHO_OFF);
 	delay(100);
