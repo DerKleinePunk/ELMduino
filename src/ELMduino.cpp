@@ -88,7 +88,9 @@ bool ELM327::initializeELM(const char &protocol, const byte &dataTimeout)
 	connected = false;
 
 	sendCommand_Blocking(SET_ALL_TO_DEFAULTS);
-	delay(100);
+	if (strstr(payload, "OK") != NULL) {
+		delay(100);
+	}
 
 	sendCommand_Blocking(RESET_ALL);
 	delay(100);
@@ -442,7 +444,7 @@ float ELM327::conditionResponse(const uint8_t &numExpectedBytes, const float &sc
 */
 void ELM327::flushInputBuff()
 {
-	if (debugMode)
+	if (debugMode && elm_port->available() > 0)
 		Serial.println(F("Clearing input serial buffer"));
 
 	while (elm_port->available())
@@ -2310,7 +2312,9 @@ void ELM327::sendCommand(const char *cmd)
 int8_t ELM327::sendCommand_Blocking(const char *cmd)
 {
 	sendCommand(cmd);
-	while (get_response() == ELM_GETTING_MSG);
+	while (get_response() == ELM_GETTING_MSG) {
+		delay(1);
+	}
 	return nb_rx_state;
 }
 
