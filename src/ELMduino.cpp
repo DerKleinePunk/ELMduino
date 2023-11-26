@@ -134,28 +134,20 @@ bool ELM327::initializeELM(const char &protocol, const byte &dataTimeout)
 	// Automatic searching for protocol requires setting the protocol to AUTO and then
 	// sending an OBD command to initiate the protocol search. The OBD command "0100"
 	// requests a list of supported PIDs 0x00 - 0x20 and is guaranteed to work
-	if ((String)protocol == "0")
+
+	if ((int)protocol == 0)
 	{	
-		// Tell the ELM327 to do an auto protocol search. If a valid protocol is found, it will be saved to memory.
-        // Some ELM clones may not have memory enabled and thus will perform the search every time.
-        sprintf(command, SET_PROTOCOL_TO_AUTO_H_SAVE, protocol); 
+		sprintf(command, TRY_PROT_H_AUTO_SEARCH, protocol); 
+		
 		if (sendCommand_Blocking(command) == ELM_SUCCESS)
 		{ 
 			if (strstr(payload, "OK") != NULL)
 			{
-				// Protocol search can take a comparatively long time. Temporarily set 
-                // the timeout value to 30 seconds, then restore the previous value. 
-                uint16_t prevTimeout = timeout_ms;
-				timeout_ms = 30000;
-				
-                if (sendCommand_Blocking("0100") == ELM_SUCCESS) 
+				if (sendCommand_Blocking("0100") == ELM_SUCCESS) 
 				{	
-                    timeout_ms = prevTimeout;
 					connected = true;
 					return connected;
 				}
-
-                timeout_ms = prevTimeout;              
 			}
 		}
 	}
@@ -181,10 +173,26 @@ bool ELM327::initializeELM(const char &protocol, const byte &dataTimeout)
 		Serial.print(F(" did not work - trying via "));
 		Serial.println(SET_PROTOCOL_TO_H_SAVE);
 	}
+			}
+		}
+	}
+	
+	if (debugMode)
+	{
+		Serial.print(F("Setting protocol via "));
+		Serial.print(TRY_PROT_H_AUTO_SEARCH);
+		Serial.print(F(" did not work - trying via "));
+		Serial.println(SET_PROTOCOL_TO_H_SAVE);
+	}
 
 	// Set protocol and save
 	sprintf(command, SET_PROTOCOL_TO_H_SAVE, protocol);
+	// Set protocol and save
+	sprintf(command, SET_PROTOCOL_TO_H_SAVE, protocol);
 
+	if (sendCommand_Blocking(command) == ELM_SUCCESS)
+		if (strstr(payload, "OK") != NULL)
+			connected = true;
 	if (sendCommand_Blocking(command) == ELM_SUCCESS)
 		if (strstr(payload, "OK") != NULL)
 			connected = true;
@@ -195,7 +203,15 @@ bool ELM327::initializeELM(const char &protocol, const byte &dataTimeout)
 		Serial.print(SET_PROTOCOL_TO_H_SAVE);
 		Serial.println(F(" did not work"));
 	}
+	if (debugMode)
+	{
+		Serial.print(F("Setting protocol via "));
+		Serial.print(SET_PROTOCOL_TO_H_SAVE);
+		Serial.println(F(" did not work"));
+	}
 
+	return connected;
+	
 	return connected;
 	
 }
