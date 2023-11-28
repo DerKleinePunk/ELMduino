@@ -1,8 +1,5 @@
 #include "ELMduino.h"
 
-
-
-
 /*
  bool ELM327::begin(Stream &stream, const bool& debug, const uint16_t& timeout, const char& protocol, const uint16_t& payloadLen, const byte& dataTimeout)
 
@@ -18,33 +15,30 @@
   * char protocol       - Protocol ID to specify the ELM327 to communicate with the ECU over
   * uint16_t payloadLen - Maximum number of bytes expected to be returned by the ELM327 after a query
   * byte dataTimeout    - Number of ms to wait after receiving data before the ELM327 will
-						  return the data - see https://www.elmelectronics.com/help/obd/tips/#UnderstandingOBD
+                          return the data - see https://www.elmelectronics.com/help/obd/tips/#UnderstandingOBD
  Return:
  -------
   * bool - Whether or not the ELM327 was properly initialized
 */
 bool ELM327::begin(Stream &stream, const bool &debug, const uint16_t &timeout, const char &protocol, const uint16_t &payloadLen, const byte &dataTimeout)
 {
-	elm_port    = &stream;
-	PAYLOAD_LEN = payloadLen;
-	debugMode   = debug;
-	timeout_ms  = timeout;
+    elm_port = &stream;
+    PAYLOAD_LEN = payloadLen;
+    debugMode = debug;
+    timeout_ms = timeout;
 
-	payload = (char *)malloc(PAYLOAD_LEN + 1); // allow for terminating '\0'
+    payload = (char *)malloc(PAYLOAD_LEN + 1); // allow for terminating '\0'
 
-	// test if serial port is connected
-	if (!elm_port)
-		return false;
+    // test if serial port is connected
+    if (!elm_port)
+        return false;
 
-	// try to connect
-	if (!initializeELM(protocol, dataTimeout))
-		return false;
+    // try to connect
+    if (!initializeELM(protocol, dataTimeout))
+        return false;
 
-	return true;
+    return true;
 }
-
-
-
 
 /*
  bool ELM327::initializeELM(const char& protocol, const byte& dataTimeout)
@@ -84,8 +78,11 @@ bool ELM327::begin(Stream &stream, const bool &debug, const uint16_t &timeout, c
 */
 bool ELM327::initializeELM(const char &protocol, const byte &dataTimeout)
 {
-	char command[10] = {'\0'};
-	connected = false;
+    char command[10] = {'\0'};
+    connected = false;
+
+    sendCommand_Blocking(SET_ALL_TO_DEFAULTS);
+    delay(100);
 
 	sendCommand_Blocking(SET_ALL_TO_DEFAULTS);
 	if (strstr(payload, "OK") != NULL) {
@@ -123,34 +120,30 @@ bool ELM327::initializeELM(const char &protocol, const byte &dataTimeout)
 		delay(100);
 	}
 
-	sendCommand_Blocking(ALLOW_LONG_MESSAGES);
-	delay(100);
+    // Set data timeout
+    sprintf(command, SET_TIMEOUT_TO_H_X_4MS, dataTimeout / 4);
+    sendCommand_Blocking(command);
+    delay(100);
 
-	// Set data timeout
-	sprintf(command, SET_TIMEOUT_TO_H_X_4MS, dataTimeout / 4);
-	sendCommand_Blocking(command);
-	delay(100);
-	
-	// Automatic searching for protocol requires setting the protocol to AUTO and then
-	// sending an OBD command to initiate the protocol search. The OBD command "0100"
-	// requests a list of supported PIDs 0x00 - 0x20 and is guaranteed to work
-
-	if ((int)protocol == 0)
-	{	
+    // Automatic searching for protocol requires setting the protocol to AUTO and then
+    // sending an OBD command to initiate the protocol search. The OBD command "0100"
+    // requests a list of supported PIDs 0x00 - 0x20 and is guaranteed to work
+    if ((String)protocol == "0")
+    {
         // Tell the ELM327 to do an auto protocol search. If a valid protocol is found, it will be saved to memory.
         // Some ELM clones may not have memory enabled and thus will perform the search every time.
-        sprintf(command, SET_PROTOCOL_TO_AUTO_H_SAVE, protocol); 
-		if (sendCommand_Blocking(command) == ELM_SUCCESS)
-		{ 
-			if (strstr(payload, "OK") != NULL)
-			{
-			    // Protocol search can take a comparatively long time. Temporarily set 
-                // the timeout value to 30 seconds, then restore the previous value. 
+        sprintf(command, SET_PROTOCOL_TO_AUTO_H_SAVE, protocol);
+        if (sendCommand_Blocking(command) == ELM_SUCCESS)
+        {
+            if (strstr(payload, "OK") != NULL)
+            {
+                // Protocol search can take a comparatively long time. Temporarily set
+                // the timeout value to 30 seconds, then restore the previous value.
                 uint16_t prevTimeout = timeout_ms;
-			    timeout_ms = 30000;
-				
-                if (sendCommand_Blocking("0100") == ELM_SUCCESS) 
-                {	
+                timeout_ms = 30000;
+
+                if (sendCommand_Blocking("0100") == ELM_SUCCESS)
+                {
                     timeout_ms = prevTimeout;
                     connected = true;
                     return connected;
@@ -182,17 +175,6 @@ bool ELM327::initializeELM(const char &protocol, const byte &dataTimeout)
 		Serial.print(F(" did not work - trying via "));
 		Serial.println(SET_PROTOCOL_TO_H_SAVE);
 	}
-			}
-		}
-	}
-	
-	if (debugMode)
-	{
-		Serial.print(F("Setting protocol via "));
-		Serial.print(TRY_PROT_H_AUTO_SEARCH);
-		Serial.print(F(" did not work - trying via "));
-		Serial.println(SET_PROTOCOL_TO_H_SAVE);
-	}
 
 	// Set protocol and save
 	sprintf(command, SET_PROTOCOL_TO_H_SAVE, protocol);
@@ -224,8 +206,6 @@ bool ELM327::initializeELM(const char &protocol, const byte &dataTimeout)
 	return connected;
 	
 }
-
-
 
 /*
  void ELM327::formatQueryArray(uint8_t service, uint16_t pid, uint8_t num_responses)
@@ -246,59 +226,56 @@ bool ELM327::initializeELM(const char &protocol, const byte &dataTimeout)
 */
 void ELM327::formatQueryArray(uint8_t service, uint16_t pid, uint8_t num_responses)
 {
-	if (debugMode)
-	{
-		Serial.print(F("Service: "));
-		Serial.println(service);
-		Serial.print(F("PID: "));
-		Serial.println(pid);
-	}
+    if (debugMode)
+    {
+        Serial.print(F("Service: "));
+        Serial.println(service);
+        Serial.print(F("PID: "));
+        Serial.println(pid);
+    }
 
-	query[0] = ((service >> 4) & 0xF) + '0';
-	query[1] = (service & 0xF) + '0';
+    query[0] = ((service >> 4) & 0xF) + '0';
+    query[1] = (service & 0xF) + '0';
 
-	// determine PID length (standard queries have 16-bit PIDs,
-	// but some custom queries have PIDs with 32-bit values)
-	if (pid & 0xFF00)
-	{
-		if (debugMode)
-			Serial.println(F("Long query detected"));
+    // determine PID length (standard queries have 16-bit PIDs,
+    // but some custom queries have PIDs with 32-bit values)
+    if (pid & 0xFF00)
+    {
+        if (debugMode)
+            Serial.println(F("Long query detected"));
 
-		longQuery = true;
+        longQuery = true;
 
-		query[2] = ((pid >> 12) & 0xF) + '0';
-		query[3] = ((pid >> 8) & 0xF) + '0';
-		query[4] = ((pid >> 4) & 0xF) + '0';
-		query[5] = (pid & 0xF) + '0';
-		query[6] = num_responses + '0';
-		query[7] = '\0';
+        query[2] = ((pid >> 12) & 0xF) + '0';
+        query[3] = ((pid >> 8) & 0xF) + '0';
+        query[4] = ((pid >> 4) & 0xF) + '0';
+        query[5] = (pid & 0xF) + '0';
+        query[6] = num_responses + '0';
+        query[7] = '\0';
 
-		upper(query, 6);
-	}
-	else
-	{
-		if (debugMode)
-			Serial.println(F("Normal length query detected"));
+        upper(query, 6);
+    }
+    else
+    {
+        if (debugMode)
+            Serial.println(F("Normal length query detected"));
 
-		longQuery = false;
+        longQuery = false;
 
-		query[2] = ((pid >> 4) & 0xF) + '0';
-		query[3] = (pid & 0xF) + '0';
-		query[4] = num_responses + '0';
-		query[5] = '\0';
+        query[2] = ((pid >> 4) & 0xF) + '0';
+        query[3] = (pid & 0xF) + '0';
+        query[4] = num_responses + '0';
+        query[5] = '\0';
 
-		upper(query, 4);
-	}
+        upper(query, 4);
+    }
 
-	if (debugMode)
-	{
-		Serial.print(F("Query string: "));
-		Serial.println(query);
-	}
+    if (debugMode)
+    {
+        Serial.print(F("Query string: "));
+        Serial.println(query);
+    }
 }
-
-
-
 
 /*
  void ELM327::upper(char string[], uint8_t buflen)
@@ -319,17 +296,14 @@ void ELM327::formatQueryArray(uint8_t service, uint16_t pid, uint8_t num_respons
 */
 void ELM327::upper(char string[], uint8_t buflen)
 {
-	for (uint8_t i = 0; i < buflen; i++)
-	{
-		if (string[i] > 'Z')
-			string[i] -= 32;
-		else if ((string[i] > '9') && (string[i] < 'A'))
-			string[i] += 7;
-	}
+    for (uint8_t i = 0; i < buflen; i++)
+    {
+        if (string[i] > 'Z')
+            string[i] -= 32;
+        else if ((string[i] > '9') && (string[i] < 'A'))
+            string[i] += 7;
+    }
 }
-
-
-
 
 /*
  bool ELM327::timeout()
@@ -348,14 +322,11 @@ void ELM327::upper(char string[], uint8_t buflen)
 */
 bool ELM327::timeout()
 {
-	currentTime = millis();
-	if ((currentTime - previousTime) >= timeout_ms)
-		return true;
-	return false;
+    currentTime = millis();
+    if ((currentTime - previousTime) >= timeout_ms)
+        return true;
+    return false;
 }
-
-
-
 
 /*
  uint8_t ELM327::ctoi(uint8_t value)
@@ -374,14 +345,11 @@ bool ELM327::timeout()
 */
 uint8_t ELM327::ctoi(uint8_t value)
 {
-	if (value >= 'A')
-		return value - 'A' + 10;
-	else
-		return value - '0';
+    if (value >= 'A')
+        return value - 'A' + 10;
+    else
+        return value - '0';
 }
-
-
-
 
 /*
  int8_t ELM327::nextIndex(char const *str,
@@ -398,7 +366,7 @@ uint8_t ELM327::ctoi(uint8_t value)
   * char const *str    - string to search target within
   * char const *target - String to search for in str
   * uint8_t numOccur   - Which instance of target in str
-  
+
  Return:
  -------
   * int8_t - First char index of numOccur'th
@@ -406,34 +374,31 @@ uint8_t ELM327::ctoi(uint8_t value)
   numOccur'th instance of target in str
 */
 int8_t ELM327::nextIndex(char const *str,
-												 char const *target,
-												 uint8_t numOccur = 1)
+                         char const *target,
+                         uint8_t numOccur = 1)
 {
-	char const *p = str;
-	char const *r = str;
-	uint8_t count;
+    char const *p = str;
+    char const *r = str;
+    uint8_t count;
 
-	for (count = 0;; ++count)
-	{
-		p = strstr(p, target);
+    for (count = 0;; ++count)
+    {
+        p = strstr(p, target);
 
-		if (count == (numOccur - 1))
-			break;
+        if (count == (numOccur - 1))
+            break;
 
-		if (!p)
-			break;
+        if (!p)
+            break;
 
-		p++;
-	}
+        p++;
+    }
 
-	if (!p)
-		return -1;
+    if (!p)
+        return -1;
 
-	return p - r;
+    return p - r;
 }
-
-
-
 
 /*
  void ELM327::conditionResponse(const uint8_t &numExpectedBytes, const float &scaleFactor, const float &bias)
@@ -455,55 +420,52 @@ int8_t ELM327::nextIndex(char const *str,
 */
 float ELM327::conditionResponse(const uint8_t &numExpectedBytes, const float &scaleFactor, const float &bias)
 {
-	if (numExpectedBytes > 8)
-	{
-		if (debugMode)
-			Serial.println(F("WARNING: Number of expected response bytes is greater than 8 - returning 0"));
-		
-		return 0;
-	}
+    if (numExpectedBytes > 8)
+    {
+        if (debugMode)
+            Serial.println(F("WARNING: Number of expected response bytes is greater than 8 - returning 0"));
 
-	if (numExpectedBytes > numPayChars)
-	{
-		if (debugMode)
-			Serial.println(F("WARNING: Number of expected response bytes is greater than the number of payload chars returned by ELM327 - returning 0"));
-		
-		return 0;
-	}
-	else if (numExpectedBytes == numPayChars)
-		return (response * scaleFactor) + bias;
+        return 0;
+    }
 
-	// If there were more payload bytes returned than we expected, test the first and last bytes in the
-	// returned payload and see which gives us a higher value. Sometimes ELM327's return leading zeros
-	// and others return trailing zeros. The following approach gives us the best chance at determining
-	// where the real data is. Note that if the payload returns BOTH leading and trailing zeros, this
-	// will not give accurate results!
+    if (numExpectedBytes > numPayChars)
+    {
+        if (debugMode)
+            Serial.println(F("WARNING: Number of expected response bytes is greater than the number of payload chars returned by ELM327 - returning 0"));
 
-	uint64_t leadingResponse = 0;
-	for (uint8_t i = 0; i < numExpectedBytes; i++)
-	{
-		uint8_t payloadIndex = PAYLOAD_LEN - numPayChars + i;
-		uint8_t bitsOffset   = 4 * (numExpectedBytes - i - 1);
+        return 0;
+    }
+    else if (numExpectedBytes == numPayChars)
+        return (response * scaleFactor) + bias;
 
-		leadingResponse |= (ctoi(payload[payloadIndex]) << bitsOffset);
-	}
+    // If there were more payload bytes returned than we expected, test the first and last bytes in the
+    // returned payload and see which gives us a higher value. Sometimes ELM327's return leading zeros
+    // and others return trailing zeros. The following approach gives us the best chance at determining
+    // where the real data is. Note that if the payload returns BOTH leading and trailing zeros, this
+    // will not give accurate results!
 
-	uint64_t laggingResponse = 0;
-	for (uint8_t i = 0; i < numExpectedBytes; i++)
-	{
-		uint8_t payloadIndex = PAYLOAD_LEN - numExpectedBytes + i;
-		uint8_t bitsOffset   = 4 * (numExpectedBytes - i - 1);
+    uint64_t leadingResponse = 0;
+    for (uint8_t i = 0; i < numExpectedBytes; i++)
+    {
+        uint8_t payloadIndex = PAYLOAD_LEN - numPayChars + i;
+        uint8_t bitsOffset = 4 * (numExpectedBytes - i - 1);
 
-		laggingResponse |= (ctoi(payload[payloadIndex]) << bitsOffset);
-	}
+        leadingResponse |= (ctoi(payload[payloadIndex]) << bitsOffset);
+    }
 
-	if (leadingResponse > laggingResponse)
-		return ((float)leadingResponse * scaleFactor) + bias;
-	return ((float)laggingResponse * scaleFactor) + bias;
+    uint64_t laggingResponse = 0;
+    for (uint8_t i = 0; i < numExpectedBytes; i++)
+    {
+        uint8_t payloadIndex = PAYLOAD_LEN - numExpectedBytes + i;
+        uint8_t bitsOffset = 4 * (numExpectedBytes - i - 1);
+
+        laggingResponse |= (ctoi(payload[payloadIndex]) << bitsOffset);
+    }
+
+    if (leadingResponse > laggingResponse)
+        return ((float)leadingResponse * scaleFactor) + bias;
+    return ((float)laggingResponse * scaleFactor) + bias;
 }
-
-
-
 
 /*
  void ELM327::flushInputBuff()
@@ -525,12 +487,9 @@ void ELM327::flushInputBuff()
 	if (debugMode && elm_port->available() > 0)
 		Serial.println(F("Clearing input serial buffer"));
 
-	while (elm_port->available())
-		elm_port->read();
+    while (elm_port->available())
+        elm_port->read();
 }
-
-
-
 
 /*
   bool ELM327::queryPID(const uint8_t& service, const uint16_t& pid, const uint8_t& num_responses)
@@ -545,23 +504,20 @@ void ELM327::flushInputBuff()
   * uint16_t pid          - The Parameter ID (PID) from the service
   * uint8_t num_responses - Number of lines of data to receive - see ELM datasheet "Talking to the vehicle".
                             This can speed up retrieval of information if you know how many responses will be sent.
-                            Basically the OBD scanner will not wait for more responses if it does not need to go through 
+                            Basically the OBD scanner will not wait for more responses if it does not need to go through
                             final timeout. Also prevents OBD scanners from sending mulitple of the same response.
 
   Return:
   -------
   * bool - Whether or not the query was submitted successfully
 */
-bool ELM327::queryPID(const uint8_t& service, const uint16_t& pid, const uint8_t& num_responses)
+bool ELM327::queryPID(const uint8_t &service, const uint16_t &pid, const uint8_t &num_responses)
 {
-	formatQueryArray(service, pid, num_responses);
-	sendCommand(query);
+    formatQueryArray(service, pid, num_responses);
+    sendCommand(query);
 
-	return connected;
+    return connected;
 }
-
-
-
 
 /*
  bool ELM327::queryPID(char queryStr[])
@@ -580,18 +536,15 @@ bool ELM327::queryPID(const uint8_t& service, const uint16_t& pid, const uint8_t
 */
 bool ELM327::queryPID(char queryStr[])
 {
-	if (strlen(queryStr) <= 4)
-		longQuery = false;
-	else
-		longQuery = true;
+    if (strlen(queryStr) <= 4)
+        longQuery = false;
+    else
+        longQuery = true;
 
-	sendCommand(queryStr);
+    sendCommand(queryStr);
 
-	return connected;
+    return connected;
 }
-
-
-
 
 /*
  float ELM327::processPID(const uint8_t& service, const uint16_t& pid, const uint8_t& num_responses, const uint8_t& numExpectedBytes, const float& scaleFactor, const float& bias)
@@ -606,7 +559,7 @@ bool ELM327::queryPID(char queryStr[])
   * uint16_t pid             - The Parameter ID (PID) from the service
   * uint8_t num_responses    - Number of lines of data to receive - see ELM datasheet "Talking to the vehicle".
                                This can speed up retrieval of information if you know how many responses will be sent.
-                               Basically the OBD scanner will not wait for more responses if it does not need to go through 
+                               Basically the OBD scanner will not wait for more responses if it does not need to go through
                                final timeout. Also prevents OBD scanners from sending mulitple of the same response.
   * uint8_t numExpectedBytes - Number of valid bytes from the response to process
   * float scaleFactor        - Amount to scale the response by
@@ -616,32 +569,29 @@ bool ELM327::queryPID(char queryStr[])
  -------
   * float - The PID value if successfully received, else 0.0
 */
-float ELM327::processPID(const uint8_t& service, const uint16_t& pid, const uint8_t& num_responses, const uint8_t& numExpectedBytes, const float& scaleFactor, const float& bias)
+float ELM327::processPID(const uint8_t &service, const uint16_t &pid, const uint8_t &num_responses, const uint8_t &numExpectedBytes, const float &scaleFactor, const float &bias)
 {
-	if (nb_query_state == SEND_COMMAND)
-	{
-		queryPID(service, pid, num_responses);
-		nb_query_state = WAITING_RESP;
-	}
-	else if (nb_query_state == WAITING_RESP)
-	{
-		get_response();
-		if (nb_rx_state == ELM_SUCCESS)
-		{
-			nb_query_state = SEND_COMMAND; // Reset the query state machine for next command
-			
-			findResponse();
+    if (nb_query_state == SEND_COMMAND)
+    {
+        queryPID(service, pid, num_responses);
+        nb_query_state = WAITING_RESP;
+    }
+    else if (nb_query_state == WAITING_RESP)
+    {
+        get_response();
+        if (nb_rx_state == ELM_SUCCESS)
+        {
+            nb_query_state = SEND_COMMAND; // Reset the query state machine for next command
 
-			return conditionResponse(numExpectedBytes, scaleFactor, bias);
-		}
-		else if (nb_rx_state != ELM_GETTING_MSG)
-			nb_query_state = SEND_COMMAND; // Error or timeout, so reset the query state machine for next command
-	}
-	return 0.0;
+            findResponse();
+
+            return conditionResponse(numExpectedBytes, scaleFactor, bias);
+        }
+        else if (nb_rx_state != ELM_GETTING_MSG)
+            nb_query_state = SEND_COMMAND; // Error or timeout, so reset the query state machine for next command
+    }
+    return 0.0;
 }
-
-
-
 
 /*
  uint32_t ELM327::supportedPIDs_1_20()
@@ -660,11 +610,8 @@ float ELM327::processPID(const uint8_t& service, const uint16_t& pid, const uint
 */
 uint32_t ELM327::supportedPIDs_1_20()
 {
-	return (uint32_t)processPID(SERVICE_01, SUPPORTED_PIDS_1_20, 1, 4);
+    return (uint32_t)processPID(SERVICE_01, SUPPORTED_PIDS_1_20, 1, 4);
 }
-
-
-
 
 /*
  uint32_t ELM327::monitorStatus()
@@ -685,11 +632,8 @@ uint32_t ELM327::supportedPIDs_1_20()
 */
 uint32_t ELM327::monitorStatus()
 {
-	return (uint32_t)processPID(SERVICE_01, MONITOR_STATUS_SINCE_DTC_CLEARED, 1, 4);
+    return (uint32_t)processPID(SERVICE_01, MONITOR_STATUS_SINCE_DTC_CLEARED, 1, 4);
 }
-
-
-
 
 /*
  uint16_t ELM327::freezeDTC()
@@ -708,11 +652,8 @@ uint32_t ELM327::monitorStatus()
 */
 uint16_t ELM327::freezeDTC()
 {
-	return (uint16_t)processPID(SERVICE_01, FREEZE_DTC, 1, 2);
+    return (uint16_t)processPID(SERVICE_01, FREEZE_DTC, 1, 2);
 }
-
-
-
 
 /*
  uint16_t ELM327::fuelSystemStatus()
@@ -731,11 +672,8 @@ uint16_t ELM327::freezeDTC()
 */
 uint16_t ELM327::fuelSystemStatus()
 {
-	return (uint16_t)processPID(SERVICE_01, FUEL_SYSTEM_STATUS, 1, 2);
+    return (uint16_t)processPID(SERVICE_01, FUEL_SYSTEM_STATUS, 1, 2);
 }
-
-
-
 
 /*
  float ELM327::engineLoad()
@@ -754,11 +692,8 @@ uint16_t ELM327::fuelSystemStatus()
 */
 float ELM327::engineLoad()
 {
-	return processPID(SERVICE_01, ENGINE_LOAD, 1, 1, 100.0 / 255.0);
+    return processPID(SERVICE_01, ENGINE_LOAD, 1, 1, 100.0 / 255.0);
 }
-
-
-
 
 /*
  float ELM327::engineCoolantTemp()
@@ -777,11 +712,8 @@ float ELM327::engineLoad()
 */
 float ELM327::engineCoolantTemp()
 {
-	return processPID(SERVICE_01, ENGINE_COOLANT_TEMP, 1, 1, 1, -40.0);
+    return processPID(SERVICE_01, ENGINE_COOLANT_TEMP, 1, 1, 1, -40.0);
 }
-
-
-
 
 /*
  float ELM327::shortTermFuelTrimBank_1()
@@ -800,11 +732,8 @@ float ELM327::engineCoolantTemp()
 */
 float ELM327::shortTermFuelTrimBank_1()
 {
-	return processPID(SERVICE_01, SHORT_TERM_FUEL_TRIM_BANK_1, 1, 1, 100.0 / 128.0, -100.0);
+    return processPID(SERVICE_01, SHORT_TERM_FUEL_TRIM_BANK_1, 1, 1, 100.0 / 128.0, -100.0);
 }
-
-
-
 
 /*
  float ELM327::longTermFuelTrimBank_1()
@@ -823,11 +752,8 @@ float ELM327::shortTermFuelTrimBank_1()
 */
 float ELM327::longTermFuelTrimBank_1()
 {
-	return processPID(SERVICE_01, LONG_TERM_FUEL_TRIM_BANK_1, 1, 1, 100.0 / 128.0, -100.0);
+    return processPID(SERVICE_01, LONG_TERM_FUEL_TRIM_BANK_1, 1, 1, 100.0 / 128.0, -100.0);
 }
-
-
-
 
 /*
  float ELM327::shortTermFuelTrimBank_2()
@@ -846,11 +772,8 @@ float ELM327::longTermFuelTrimBank_1()
 */
 float ELM327::shortTermFuelTrimBank_2()
 {
-	return processPID(SERVICE_01, SHORT_TERM_FUEL_TRIM_BANK_2, 1, 1, 100.0 / 128.0, -100.0);
+    return processPID(SERVICE_01, SHORT_TERM_FUEL_TRIM_BANK_2, 1, 1, 100.0 / 128.0, -100.0);
 }
-
-
-
 
 /*
  float ELM327::longTermFuelTrimBank_2()
@@ -869,11 +792,8 @@ float ELM327::shortTermFuelTrimBank_2()
 */
 float ELM327::longTermFuelTrimBank_2()
 {
-	return processPID(SERVICE_01, LONG_TERM_FUEL_TRIM_BANK_2, 1, 1, 100.0 / 128.0, -100.0);
+    return processPID(SERVICE_01, LONG_TERM_FUEL_TRIM_BANK_2, 1, 1, 100.0 / 128.0, -100.0);
 }
-
-
-
 
 /*
  float ELM327::fuelPressure()
@@ -892,11 +812,8 @@ float ELM327::longTermFuelTrimBank_2()
 */
 float ELM327::fuelPressure()
 {
-	return processPID(SERVICE_01, FUEL_PRESSURE, 1, 1, 3.0);
+    return processPID(SERVICE_01, FUEL_PRESSURE, 1, 1, 3.0);
 }
-
-
-
 
 /*
  uint8_t ELM327::manifoldPressure()
@@ -915,11 +832,8 @@ float ELM327::fuelPressure()
 */
 uint8_t ELM327::manifoldPressure()
 {
-	return (uint8_t)processPID(SERVICE_01, INTAKE_MANIFOLD_ABS_PRESSURE, 1, 1);
+    return (uint8_t)processPID(SERVICE_01, INTAKE_MANIFOLD_ABS_PRESSURE, 1, 1);
 }
-
-
-
 
 /*
  float ELM327::rpm()
@@ -938,11 +852,8 @@ uint8_t ELM327::manifoldPressure()
 */
 float ELM327::rpm()
 {
-	return processPID(SERVICE_01, ENGINE_RPM, 1, 2, 1.0 / 4.0);
+    return processPID(SERVICE_01, ENGINE_RPM, 1, 2, 1.0 / 4.0);
 }
-
-
-
 
 /*
  int32_t ELM327::kph()
@@ -961,11 +872,8 @@ float ELM327::rpm()
 */
 int32_t ELM327::kph()
 {
-	return (int32_t)processPID(SERVICE_01, VEHICLE_SPEED, 1, 1);
+    return (int32_t)processPID(SERVICE_01, VEHICLE_SPEED, 1, 1);
 }
-
-
-
 
 /*
  float ELM327::mph()
@@ -984,11 +892,8 @@ int32_t ELM327::kph()
 */
 float ELM327::mph()
 {
-	return kph() * KPH_MPH_CONVERT;
+    return kph() * KPH_MPH_CONVERT;
 }
-
-
-
 
 /*
  float ELM327::timingAdvance()
@@ -1007,11 +912,8 @@ float ELM327::mph()
 */
 float ELM327::timingAdvance()
 {
-	return processPID(SERVICE_01, TIMING_ADVANCE, 1, 1, 1.0 / 2.0, -64.0);
+    return processPID(SERVICE_01, TIMING_ADVANCE, 1, 1, 1.0 / 2.0, -64.0);
 }
-
-
-
 
 /*
  float ELM327::intakeAirTemp()
@@ -1030,11 +932,8 @@ float ELM327::timingAdvance()
 */
 float ELM327::intakeAirTemp()
 {
-	return processPID(SERVICE_01, INTAKE_AIR_TEMP, 1, 1, 1, -40.0);
+    return processPID(SERVICE_01, INTAKE_AIR_TEMP, 1, 1, 1, -40.0);
 }
-
-
-
 
 /*
  float ELM327::mafRate()
@@ -1053,11 +952,8 @@ float ELM327::intakeAirTemp()
 */
 float ELM327::mafRate()
 {
-	return processPID(SERVICE_01, MAF_FLOW_RATE, 1, 2, 1.0 / 100.0);
+    return processPID(SERVICE_01, MAF_FLOW_RATE, 1, 2, 1.0 / 100.0);
 }
-
-
-
 
 /*
  float ELM327::throttle()
@@ -1076,11 +972,8 @@ float ELM327::mafRate()
 */
 float ELM327::throttle()
 {
-	return processPID(SERVICE_01, THROTTLE_POSITION, 1, 1, 100.0 / 255.0);
+    return processPID(SERVICE_01, THROTTLE_POSITION, 1, 1, 100.0 / 255.0);
 }
-
-
-
 
 /*
  uint8_t ELM327::commandedSecAirStatus()
@@ -1099,11 +992,8 @@ float ELM327::throttle()
 */
 uint8_t ELM327::commandedSecAirStatus()
 {
-	return (uint8_t)processPID(SERVICE_01, COMMANDED_SECONDARY_AIR_STATUS, 1, 1);
+    return (uint8_t)processPID(SERVICE_01, COMMANDED_SECONDARY_AIR_STATUS, 1, 1);
 }
-
-
-
 
 /*
  uint8_t ELM327::oxygenSensorsPresent_2banks()
@@ -1122,11 +1012,8 @@ uint8_t ELM327::commandedSecAirStatus()
 */
 uint8_t ELM327::oxygenSensorsPresent_2banks()
 {
-	return (uint8_t)processPID(SERVICE_01, OXYGEN_SENSORS_PRESENT_2_BANKS, 1, 1);
+    return (uint8_t)processPID(SERVICE_01, OXYGEN_SENSORS_PRESENT_2_BANKS, 1, 1);
 }
-
-
-
 
 /*
  uint8_t ELM327::obdStandards()
@@ -1145,11 +1032,8 @@ uint8_t ELM327::oxygenSensorsPresent_2banks()
 */
 uint8_t ELM327::obdStandards()
 {
-	return (uint8_t)processPID(SERVICE_01, OBD_STANDARDS, 1, 1);
+    return (uint8_t)processPID(SERVICE_01, OBD_STANDARDS, 1, 1);
 }
-
-
-
 
 /*
  uint8_t ELM327::oxygenSensorsPresent_4banks()
@@ -1168,11 +1052,8 @@ uint8_t ELM327::obdStandards()
 */
 uint8_t ELM327::oxygenSensorsPresent_4banks()
 {
-	return (uint8_t)processPID(SERVICE_01, OXYGEN_SENSORS_PRESENT_4_BANKS, 1, 1);
+    return (uint8_t)processPID(SERVICE_01, OXYGEN_SENSORS_PRESENT_4_BANKS, 1, 1);
 }
-
-
-
 
 /*
  bool ELM327::auxInputStatus()
@@ -1191,11 +1072,8 @@ uint8_t ELM327::oxygenSensorsPresent_4banks()
 */
 bool ELM327::auxInputStatus()
 {
-	return (bool)processPID(SERVICE_01, AUX_INPUT_STATUS, 1, 1);
+    return (bool)processPID(SERVICE_01, AUX_INPUT_STATUS, 1, 1);
 }
-
-
-
 
 /*
  uint16_t ELM327::runTime()
@@ -1214,11 +1092,8 @@ bool ELM327::auxInputStatus()
 */
 uint16_t ELM327::runTime()
 {
-	return (uint16_t)processPID(SERVICE_01, RUN_TIME_SINCE_ENGINE_START, 1, 2);
+    return (uint16_t)processPID(SERVICE_01, RUN_TIME_SINCE_ENGINE_START, 1, 2);
 }
-
-
-
 
 /*
  uint32_t ELM327::supportedPIDs_21_40()
@@ -1237,11 +1112,8 @@ uint16_t ELM327::runTime()
 */
 uint32_t ELM327::supportedPIDs_21_40()
 {
-	return (uint32_t)processPID(SERVICE_01, SUPPORTED_PIDS_21_40, 1, 4);
+    return (uint32_t)processPID(SERVICE_01, SUPPORTED_PIDS_21_40, 1, 4);
 }
-
-
-
 
 /*
  uint16_t ELM327::distTravelWithMIL()
@@ -1260,11 +1132,8 @@ uint32_t ELM327::supportedPIDs_21_40()
 */
 uint16_t ELM327::distTravelWithMIL()
 {
-	return (uint16_t)processPID(SERVICE_01, DISTANCE_TRAVELED_WITH_MIL_ON, 1, 2);
+    return (uint16_t)processPID(SERVICE_01, DISTANCE_TRAVELED_WITH_MIL_ON, 1, 2);
 }
-
-
-
 
 /*
  float ELM327::fuelRailPressure()
@@ -1283,11 +1152,8 @@ uint16_t ELM327::distTravelWithMIL()
 */
 float ELM327::fuelRailPressure()
 {
-	return processPID(SERVICE_01, FUEL_RAIL_PRESSURE, 1, 2, 0.079);
+    return processPID(SERVICE_01, FUEL_RAIL_PRESSURE, 1, 2, 0.079);
 }
-
-
-
 
 /*
  float ELM327::fuelRailGuagePressure()
@@ -1306,11 +1172,8 @@ float ELM327::fuelRailPressure()
 */
 float ELM327::fuelRailGuagePressure()
 {
-	return processPID(SERVICE_01, FUEL_RAIL_GUAGE_PRESSURE, 1, 2, 10.0);
+    return processPID(SERVICE_01, FUEL_RAIL_GUAGE_PRESSURE, 1, 2, 10.0);
 }
-
-
-
 
 /*
  float ELM327::commandedEGR()
@@ -1329,11 +1192,8 @@ float ELM327::fuelRailGuagePressure()
 */
 float ELM327::commandedEGR()
 {
-	return processPID(SERVICE_01, COMMANDED_EGR, 1, 1, 100.0 / 255.0);
+    return processPID(SERVICE_01, COMMANDED_EGR, 1, 1, 100.0 / 255.0);
 }
-
-
-
 
 /*
  float ELM327::egrError()
@@ -1352,11 +1212,8 @@ float ELM327::commandedEGR()
 */
 float ELM327::egrError()
 {
-	return processPID(SERVICE_01, EGR_ERROR, 1, 1, 100.0 / 128.0, -100);
+    return processPID(SERVICE_01, EGR_ERROR, 1, 1, 100.0 / 128.0, -100);
 }
-
-
-
 
 /*
  float ELM327::commandedEvapPurge()
@@ -1375,11 +1232,8 @@ float ELM327::egrError()
 */
 float ELM327::commandedEvapPurge()
 {
-	return processPID(SERVICE_01, COMMANDED_EVAPORATIVE_PURGE, 1, 1, 100.0 / 255.0);
+    return processPID(SERVICE_01, COMMANDED_EVAPORATIVE_PURGE, 1, 1, 100.0 / 255.0);
 }
-
-
-
 
 /*
  float ELM327::fuelLevel()
@@ -1398,11 +1252,8 @@ float ELM327::commandedEvapPurge()
 */
 float ELM327::fuelLevel()
 {
-	return processPID(SERVICE_01, FUEL_TANK_LEVEL_INPUT, 1, 1, 100.0 / 255.0);
+    return processPID(SERVICE_01, FUEL_TANK_LEVEL_INPUT, 1, 1, 100.0 / 255.0);
 }
-
-
-
 
 /*
  uint8_t ELM327::warmUpsSinceCodesCleared()
@@ -1421,11 +1272,8 @@ float ELM327::fuelLevel()
 */
 uint8_t ELM327::warmUpsSinceCodesCleared()
 {
-	return (uint8_t)processPID(SERVICE_01, WARM_UPS_SINCE_CODES_CLEARED, 1, 1);
+    return (uint8_t)processPID(SERVICE_01, WARM_UPS_SINCE_CODES_CLEARED, 1, 1);
 }
-
-
-
 
 /*
  uint16_t ELM327::distSinceCodesCleared()
@@ -1444,11 +1292,8 @@ uint8_t ELM327::warmUpsSinceCodesCleared()
 */
 uint16_t ELM327::distSinceCodesCleared()
 {
-	return (uint16_t)processPID(SERVICE_01, DIST_TRAV_SINCE_CODES_CLEARED, 1, 2);
+    return (uint16_t)processPID(SERVICE_01, DIST_TRAV_SINCE_CODES_CLEARED, 1, 2);
 }
-
-
-
 
 /*
  float ELM327::evapSysVapPressure()
@@ -1467,11 +1312,8 @@ uint16_t ELM327::distSinceCodesCleared()
 */
 float ELM327::evapSysVapPressure()
 {
-	return processPID(SERVICE_01, EVAP_SYSTEM_VAPOR_PRESSURE, 1, 2, 1.0 / 4.0);
+    return processPID(SERVICE_01, EVAP_SYSTEM_VAPOR_PRESSURE, 1, 2, 1.0 / 4.0);
 }
-
-
-
 
 /*
  uint8_t ELM327::absBaroPressure()
@@ -1490,11 +1332,8 @@ float ELM327::evapSysVapPressure()
 */
 uint8_t ELM327::absBaroPressure()
 {
-	return (uint8_t)processPID(SERVICE_01, ABS_BAROMETRIC_PRESSURE, 1, 1);
+    return (uint8_t)processPID(SERVICE_01, ABS_BAROMETRIC_PRESSURE, 1, 1);
 }
-
-
-
 
 /*
  float ELM327::catTempB1S1()
@@ -1513,11 +1352,8 @@ uint8_t ELM327::absBaroPressure()
 */
 float ELM327::catTempB1S1()
 {
-	return processPID(SERVICE_01, CATALYST_TEMP_BANK_1_SENSOR_1, 1, 2, 1.0 / 10.0, -40.0);
+    return processPID(SERVICE_01, CATALYST_TEMP_BANK_1_SENSOR_1, 1, 2, 1.0 / 10.0, -40.0);
 }
-
-
-
 
 /*
  float ELM327::catTempB2S1()
@@ -1536,11 +1372,8 @@ float ELM327::catTempB1S1()
 */
 float ELM327::catTempB2S1()
 {
-	return processPID(SERVICE_01, CATALYST_TEMP_BANK_2_SENSOR_1, 1, 2, 1.0 / 10.0, -40.0);
+    return processPID(SERVICE_01, CATALYST_TEMP_BANK_2_SENSOR_1, 1, 2, 1.0 / 10.0, -40.0);
 }
-
-
-
 
 /*
  float ELM327::catTempB1S2()
@@ -1559,11 +1392,8 @@ float ELM327::catTempB2S1()
 */
 float ELM327::catTempB1S2()
 {
-	return processPID(SERVICE_01, CATALYST_TEMP_BANK_1_SENSOR_2, 1, 2, 1.0 / 10.0, -40.0);
+    return processPID(SERVICE_01, CATALYST_TEMP_BANK_1_SENSOR_2, 1, 2, 1.0 / 10.0, -40.0);
 }
-
-
-
 
 /*
  float ELM327::catTempB2S2()
@@ -1582,11 +1412,8 @@ float ELM327::catTempB1S2()
 */
 float ELM327::catTempB2S2()
 {
-	return processPID(SERVICE_01, CATALYST_TEMP_BANK_2_SENSOR_2, 1, 2, 1.0 / 10.0, -40.0);
+    return processPID(SERVICE_01, CATALYST_TEMP_BANK_2_SENSOR_2, 1, 2, 1.0 / 10.0, -40.0);
 }
-
-
-
 
 /*
  uint32_t ELM327::supportedPIDs_41_60()
@@ -1605,11 +1432,8 @@ float ELM327::catTempB2S2()
 */
 uint32_t ELM327::supportedPIDs_41_60()
 {
-	return (uint32_t)processPID(SERVICE_01, SUPPORTED_PIDS_41_60, 1, 4);
+    return (uint32_t)processPID(SERVICE_01, SUPPORTED_PIDS_41_60, 1, 4);
 }
-
-
-
 
 /*
  uint32_t ELM327::monitorDriveCycleStatus()
@@ -1628,11 +1452,8 @@ uint32_t ELM327::supportedPIDs_41_60()
 */
 uint32_t ELM327::monitorDriveCycleStatus()
 {
-	return (uint32_t)processPID(SERVICE_01, MONITOR_STATUS_THIS_DRIVE_CYCLE, 1, 4);
+    return (uint32_t)processPID(SERVICE_01, MONITOR_STATUS_THIS_DRIVE_CYCLE, 1, 4);
 }
-
-
-
 
 /*
  float ELM327::ctrlModVoltage()
@@ -1651,11 +1472,8 @@ uint32_t ELM327::monitorDriveCycleStatus()
 */
 float ELM327::ctrlModVoltage()
 {
-	return processPID(SERVICE_01, CONTROL_MODULE_VOLTAGE, 1, 2, 1.0 / 1000.0);
+    return processPID(SERVICE_01, CONTROL_MODULE_VOLTAGE, 1, 2, 1.0 / 1000.0);
 }
-
-
-
 
 /*
  float ELM327::absLoad()
@@ -1674,11 +1492,8 @@ float ELM327::ctrlModVoltage()
 */
 float ELM327::absLoad()
 {
-	return processPID(SERVICE_01, ABS_LOAD_VALUE, 1, 2, 100.0 / 255.0);
+    return processPID(SERVICE_01, ABS_LOAD_VALUE, 1, 2, 100.0 / 255.0);
 }
-
-
-
 
 /*
  float ELM327::commandedAirFuelRatio()
@@ -1697,11 +1512,8 @@ float ELM327::absLoad()
 */
 float ELM327::commandedAirFuelRatio()
 {
-	return processPID(SERVICE_01, FUEL_AIR_COMMANDED_EQUIV_RATIO, 1, 2, 2.0 / 65536.0);
+    return processPID(SERVICE_01, FUEL_AIR_COMMANDED_EQUIV_RATIO, 1, 2, 2.0 / 65536.0);
 }
-
-
-
 
 /*
  float ELM327::relativeThrottle()
@@ -1720,11 +1532,8 @@ float ELM327::commandedAirFuelRatio()
 */
 float ELM327::relativeThrottle()
 {
-	return processPID(SERVICE_01, RELATIVE_THROTTLE_POSITION, 1, 1, 100.0 / 255.0);
+    return processPID(SERVICE_01, RELATIVE_THROTTLE_POSITION, 1, 1, 100.0 / 255.0);
 }
-
-
-
 
 /*
  float ELM327::ambientAirTemp()
@@ -1743,11 +1552,8 @@ float ELM327::relativeThrottle()
 */
 float ELM327::ambientAirTemp()
 {
-	return processPID(SERVICE_01, AMBIENT_AIR_TEMP, 1, 1, 1, -40);
+    return processPID(SERVICE_01, AMBIENT_AIR_TEMP, 1, 1, 1, -40);
 }
-
-
-
 
 /*
  float ELM327::absThrottlePosB()
@@ -1766,11 +1572,8 @@ float ELM327::ambientAirTemp()
 */
 float ELM327::absThrottlePosB()
 {
-	return processPID(SERVICE_01, ABS_THROTTLE_POSITION_B, 1, 1, 100.0 / 255.0);
+    return processPID(SERVICE_01, ABS_THROTTLE_POSITION_B, 1, 1, 100.0 / 255.0);
 }
-
-
-
 
 /*
  float ELM327::absThrottlePosC()
@@ -1789,11 +1592,8 @@ float ELM327::absThrottlePosB()
 */
 float ELM327::absThrottlePosC()
 {
-	return processPID(SERVICE_01, ABS_THROTTLE_POSITION_C, 1, 1, 100.0 / 255.0);
+    return processPID(SERVICE_01, ABS_THROTTLE_POSITION_C, 1, 1, 100.0 / 255.0);
 }
-
-
-
 
 /*
  float ELM327::absThrottlePosD()
@@ -1812,11 +1612,8 @@ float ELM327::absThrottlePosC()
 */
 float ELM327::absThrottlePosD()
 {
-	return processPID(SERVICE_01, ABS_THROTTLE_POSITION_D, 1, 1, 100.0 / 255.0);
+    return processPID(SERVICE_01, ABS_THROTTLE_POSITION_D, 1, 1, 100.0 / 255.0);
 }
-
-
-
 
 /*
  float ELM327::absThrottlePosE()
@@ -1835,11 +1632,8 @@ float ELM327::absThrottlePosD()
 */
 float ELM327::absThrottlePosE()
 {
-	return processPID(SERVICE_01, ABS_THROTTLE_POSITION_E, 1, 1, 100.0 / 255.0);
+    return processPID(SERVICE_01, ABS_THROTTLE_POSITION_E, 1, 1, 100.0 / 255.0);
 }
-
-
-
 
 /*
  float ELM327::absThrottlePosF()
@@ -1858,11 +1652,8 @@ float ELM327::absThrottlePosE()
 */
 float ELM327::absThrottlePosF()
 {
-	return processPID(SERVICE_01, ABS_THROTTLE_POSITION_F, 1, 1, 100.0 / 255.0);
+    return processPID(SERVICE_01, ABS_THROTTLE_POSITION_F, 1, 1, 100.0 / 255.0);
 }
-
-
-
 
 /*
  float ELM327::commandedThrottleActuator()
@@ -1881,11 +1672,8 @@ float ELM327::absThrottlePosF()
 */
 float ELM327::commandedThrottleActuator()
 {
-	return processPID(SERVICE_01, COMMANDED_THROTTLE_ACTUATOR, 1, 1, 100.0 / 255.0);
+    return processPID(SERVICE_01, COMMANDED_THROTTLE_ACTUATOR, 1, 1, 100.0 / 255.0);
 }
-
-
-
 
 /*
  uint16_t ELM327::timeRunWithMIL()
@@ -1904,11 +1692,8 @@ float ELM327::commandedThrottleActuator()
 */
 uint16_t ELM327::timeRunWithMIL()
 {
-	return (uint16_t)processPID(SERVICE_01, TIME_RUN_WITH_MIL_ON, 1, 2);
+    return (uint16_t)processPID(SERVICE_01, TIME_RUN_WITH_MIL_ON, 1, 2);
 }
-
-
-
 
 /*
  uint16_t ELM327::timeSinceCodesCleared()
@@ -1927,11 +1712,8 @@ uint16_t ELM327::timeRunWithMIL()
 */
 uint16_t ELM327::timeSinceCodesCleared()
 {
-	return (uint16_t)processPID(SERVICE_01, TIME_SINCE_CODES_CLEARED, 1, 2);
+    return (uint16_t)processPID(SERVICE_01, TIME_SINCE_CODES_CLEARED, 1, 2);
 }
-
-
-
 
 /*
  float ELM327::maxMafRate()
@@ -1950,11 +1732,8 @@ uint16_t ELM327::timeSinceCodesCleared()
 */
 float ELM327::maxMafRate()
 {
-	return processPID(SERVICE_01, MAX_MAF_RATE, 1, 1, 10.0);
+    return processPID(SERVICE_01, MAX_MAF_RATE, 1, 1, 10.0);
 }
-
-
-
 
 /*
  uint8_t ELM327::fuelType()
@@ -1973,11 +1752,8 @@ float ELM327::maxMafRate()
 */
 uint8_t ELM327::fuelType()
 {
-	return (uint8_t)processPID(SERVICE_01, FUEL_TYPE, 1, 1);
+    return (uint8_t)processPID(SERVICE_01, FUEL_TYPE, 1, 1);
 }
-
-
-
 
 /*
  float ELM327::ethanolPercent()
@@ -1996,11 +1772,8 @@ uint8_t ELM327::fuelType()
 */
 float ELM327::ethanolPercent()
 {
-	return processPID(SERVICE_01, ETHANOL_FUEL_PERCENT, 1, 1, 100.0 / 255.0);
+    return processPID(SERVICE_01, ETHANOL_FUEL_PERCENT, 1, 1, 100.0 / 255.0);
 }
-
-
-
 
 /*
  float ELM327::absEvapSysVapPressure()
@@ -2019,11 +1792,8 @@ float ELM327::ethanolPercent()
 */
 float ELM327::absEvapSysVapPressure()
 {
-	return processPID(SERVICE_01, ABS_EVAP_SYS_VAPOR_PRESSURE, 1, 2, 1.0 / 200.0);
+    return processPID(SERVICE_01, ABS_EVAP_SYS_VAPOR_PRESSURE, 1, 2, 1.0 / 200.0);
 }
-
-
-
 
 /*
  float ELM327::evapSysVapPressure2()
@@ -2042,11 +1812,8 @@ float ELM327::absEvapSysVapPressure()
 */
 float ELM327::evapSysVapPressure2()
 {
-	return processPID(SERVICE_01, EVAP_SYS_VAPOR_PRESSURE, 1, 2, 1, -32767);
+    return processPID(SERVICE_01, EVAP_SYS_VAPOR_PRESSURE, 1, 2, 1, -32767);
 }
-
-
-
 
 /*
  float ELM327::absFuelRailPressure()
@@ -2065,11 +1832,8 @@ float ELM327::evapSysVapPressure2()
 */
 float ELM327::absFuelRailPressure()
 {
-	return processPID(SERVICE_01, FUEL_RAIL_ABS_PRESSURE, 1, 2, 10.0);
+    return processPID(SERVICE_01, FUEL_RAIL_ABS_PRESSURE, 1, 2, 10.0);
 }
-
-
-
 
 /*
  float ELM327::relativePedalPos()
@@ -2088,11 +1852,8 @@ float ELM327::absFuelRailPressure()
 */
 float ELM327::relativePedalPos()
 {
-	return processPID(SERVICE_01, RELATIVE_ACCELERATOR_PEDAL_POS, 1, 1, 100.0 / 255.0);
+    return processPID(SERVICE_01, RELATIVE_ACCELERATOR_PEDAL_POS, 1, 1, 100.0 / 255.0);
 }
-
-
-
 
 /*
  float ELM327::hybridBatLife()
@@ -2111,11 +1872,8 @@ float ELM327::relativePedalPos()
 */
 float ELM327::hybridBatLife()
 {
-	return processPID(SERVICE_01, HYBRID_BATTERY_REMAINING_LIFE, 1, 1, 100.0 / 255.0);
+    return processPID(SERVICE_01, HYBRID_BATTERY_REMAINING_LIFE, 1, 1, 100.0 / 255.0);
 }
-
-
-
 
 /*
  float ELM327::oilTemp()
@@ -2134,11 +1892,8 @@ float ELM327::hybridBatLife()
 */
 float ELM327::oilTemp()
 {
-	return processPID(SERVICE_01, ENGINE_OIL_TEMP, 1, 1, 1, -40.0);
+    return processPID(SERVICE_01, ENGINE_OIL_TEMP, 1, 1, 1, -40.0);
 }
-
-
-
 
 /*
  float ELM327::fuelInjectTiming()
@@ -2157,11 +1912,8 @@ float ELM327::oilTemp()
 */
 float ELM327::fuelInjectTiming()
 {
-	return processPID(SERVICE_01, FUEL_INJECTION_TIMING, 1, 2, 1.0 / 128.0, -210.0);
+    return processPID(SERVICE_01, FUEL_INJECTION_TIMING, 1, 2, 1.0 / 128.0, -210.0);
 }
-
-
-
 
 /*
  float ELM327::fuelRate()
@@ -2180,11 +1932,8 @@ float ELM327::fuelInjectTiming()
 */
 float ELM327::fuelRate()
 {
-	return processPID(SERVICE_01, ENGINE_FUEL_RATE, 1, 2, 1.0 / 20.0);
+    return processPID(SERVICE_01, ENGINE_FUEL_RATE, 1, 2, 1.0 / 20.0);
 }
-
-
-
 
 /*
  uint8_t ELM327::emissionRqmts()
@@ -2203,11 +1952,8 @@ float ELM327::fuelRate()
 */
 uint8_t ELM327::emissionRqmts()
 {
-	return (uint8_t)processPID(SERVICE_01, EMISSION_REQUIREMENTS, 1, 1);
+    return (uint8_t)processPID(SERVICE_01, EMISSION_REQUIREMENTS, 1, 1);
 }
-
-
-
 
 /*
  uint32_t ELM327::supportedPIDs_61_80()
@@ -2226,11 +1972,8 @@ uint8_t ELM327::emissionRqmts()
 */
 uint32_t ELM327::supportedPIDs_61_80()
 {
-	return (uint32_t)processPID(SERVICE_01, SUPPORTED_PIDS_61_80, 1, 4);
+    return (uint32_t)processPID(SERVICE_01, SUPPORTED_PIDS_61_80, 1, 4);
 }
-
-
-
 
 /*
  float ELM327::demandedTorque()
@@ -2249,11 +1992,8 @@ uint32_t ELM327::supportedPIDs_61_80()
 */
 float ELM327::demandedTorque()
 {
-	return processPID(SERVICE_01, DEMANDED_ENGINE_PERCENT_TORQUE, 1, 1, 1, -125.0);
+    return processPID(SERVICE_01, DEMANDED_ENGINE_PERCENT_TORQUE, 1, 1, 1, -125.0);
 }
-
-
-
 
 /*
  float ELM327::torque()
@@ -2272,11 +2012,8 @@ float ELM327::demandedTorque()
 */
 float ELM327::torque()
 {
-	return processPID(SERVICE_01, ACTUAL_ENGINE_TORQUE, 1, 1, 1, -125.0);
+    return processPID(SERVICE_01, ACTUAL_ENGINE_TORQUE, 1, 1, 1, -125.0);
 }
-
-
-
 
 /*
  uint16_t ELM327::referenceTorque()
@@ -2295,11 +2032,8 @@ float ELM327::torque()
 */
 uint16_t ELM327::referenceTorque()
 {
-	return processPID(SERVICE_01, ENGINE_REFERENCE_TORQUE, 1, 2);
+    return processPID(SERVICE_01, ENGINE_REFERENCE_TORQUE, 1, 2);
 }
-
-
-
 
 /*
  uint16_t ELM327::auxSupported()
@@ -2318,11 +2052,8 @@ uint16_t ELM327::referenceTorque()
 */
 uint16_t ELM327::auxSupported()
 {
-	return (uint16_t)processPID(SERVICE_01, AUX_INPUT_OUTPUT_SUPPORTED, 1, 2);
+    return (uint16_t)processPID(SERVICE_01, AUX_INPUT_OUTPUT_SUPPORTED, 1, 2);
 }
-
-
-
 
 /*
  void ELM327::sendCommand(const char *cmd)
@@ -2341,40 +2072,37 @@ uint16_t ELM327::auxSupported()
 */
 void ELM327::sendCommand(const char *cmd)
 {
-	// clear payload buffer
-	memset(payload, '\0', PAYLOAD_LEN + 1);
+    // clear payload buffer
+    memset(payload, '\0', PAYLOAD_LEN + 1);
 
-	// reset input serial buffer and number of received bytes
-	recBytes = 0;
-	flushInputBuff();
-	connected = false;
+    // reset input serial buffer and number of received bytes
+    recBytes = 0;
+    flushInputBuff();
+    connected = false;
 
-	// Reset the receive state ready to start receiving a response message
-	nb_rx_state = ELM_GETTING_MSG;
+    // Reset the receive state ready to start receiving a response message
+    nb_rx_state = ELM_GETTING_MSG;
 
-	if (debugMode)
-	{
-		Serial.print(F("Sending the following command/query: "));
-		Serial.println(cmd);
-	}
+    if (debugMode)
+    {
+        Serial.print(F("Sending the following command/query: "));
+        Serial.println(cmd);
+    }
 
-	elm_port->printf("%s\r",cmd);
-	elm_port->flush();
+    elm_port->print(cmd);
+    elm_port->print('\r');
 
-	// prime the timeout timer
-	previousTime = millis();
-	currentTime = previousTime;
+    // prime the timeout timer
+    previousTime = millis();
+    currentTime = previousTime;
 }
-
-
-
 
 /*
  obd_rx_states ELM327::sendCommand_Blocking(const char* cmd)
 
  Description:
  ------------
-	* Sends a command/query and waits for a respoonse (blocking function)
+    * Sends a command/query and waits for a respoonse (blocking function)
     Sometimes it's desirable to use a blocking command, e.g when sending an AT command.
     This function removes the need for the caller to set up a loop waiting for the command to finish.
     Caller is free to parse the payload string if they need to use the response.
@@ -2395,9 +2123,6 @@ int8_t ELM327::sendCommand_Blocking(const char *cmd)
 	}
 	return nb_rx_state;
 }
-
-
-
 
 /*
  obd_rx_states ELM327::get_response(void)
@@ -2554,9 +2279,6 @@ int8_t ELM327::get_response(void)
 	return nb_rx_state;
 }
 
-
-
-
 /*
  uint64_t ELM327::findResponse()
 
@@ -2574,114 +2296,111 @@ int8_t ELM327::get_response(void)
 */
 uint64_t ELM327::findResponse()
 {
-	uint8_t firstDatum = 0;
-	char header[7] = {'\0'};
+    uint8_t firstDatum = 0;
+    char header[7] = {'\0'};
 
-	if (longQuery)
-	{
-		header[0] = query[0] + 4;
-		header[1] = query[1];
-		header[2] = query[2];
-		header[3] = query[3];
-		header[4] = query[4];
-		header[5] = query[5];
-	}
-	else
-	{
-		header[0] = query[0] + 4;
-		header[1] = query[1];
-		header[2] = query[2];
-		header[3] = query[3];
-	}
+    if (longQuery)
+    {
+        header[0] = query[0] + 4;
+        header[1] = query[1];
+        header[2] = query[2];
+        header[3] = query[3];
+        header[4] = query[4];
+        header[5] = query[5];
+    }
+    else
+    {
+        header[0] = query[0] + 4;
+        header[1] = query[1];
+        header[2] = query[2];
+        header[3] = query[3];
+    }
 
-	if (debugMode)
-	{
-		Serial.print(F("Expected response header: "));
-		Serial.println(header);
-	}
+    if (debugMode)
+    {
+        Serial.print(F("Expected response header: "));
+        Serial.println(header);
+    }
 
-	int8_t firstHeadIndex  = nextIndex(payload, header);
-	int8_t secondHeadIndex = nextIndex(payload, header, 2);
+    int8_t firstHeadIndex = nextIndex(payload, header);
+    int8_t secondHeadIndex = nextIndex(payload, header, 2);
 
-	if (firstHeadIndex >= 0)
-	{
-		if (longQuery)
-			firstDatum = firstHeadIndex + 6;
-		else
-			firstDatum = firstHeadIndex + 4;
+    if (firstHeadIndex >= 0)
+    {
+        if (longQuery)
+            firstDatum = firstHeadIndex + 6;
+        else
+            firstDatum = firstHeadIndex + 4;
 
-		// Some ELM327s (such as my own) respond with two
-		// "responses" per query. "numPayChars" represents the
-		// correct number of bytes returned by the ELM327
-		// regardless of how many "responses" were returned
-		if (secondHeadIndex >= 0)
-		{
-			if (debugMode)
-				Serial.println(F("Double response detected"));
+        // Some ELM327s (such as my own) respond with two
+        // "responses" per query. "numPayChars" represents the
+        // correct number of bytes returned by the ELM327
+        // regardless of how many "responses" were returned
+        if (secondHeadIndex >= 0)
+        {
+            if (debugMode)
+                Serial.println(F("Double response detected"));
 
-			numPayChars = secondHeadIndex - firstDatum;
-		}
-		else
-		{
-			if (debugMode)
-				Serial.println(F("Single response detected"));
+            numPayChars = secondHeadIndex - firstDatum;
+        }
+        else
+        {
+            if (debugMode)
+                Serial.println(F("Single response detected"));
 
-			numPayChars = recBytes - firstDatum;
-		}
+            numPayChars = recBytes - firstDatum;
+        }
 
-		response = 0;
-		for (uint8_t i = 0; i < numPayChars; i++)
-		{
-			uint8_t payloadIndex = firstDatum + i;
-			uint8_t bitsOffset = 4 * (numPayChars - i - 1);
-			response = response | (ctoi(payload[payloadIndex]) << bitsOffset);
-		}
+        response = 0;
+        for (uint8_t i = 0; i < numPayChars; i++)
+        {
+            uint8_t payloadIndex = firstDatum + i;
+            uint8_t bitsOffset = 4 * (numPayChars - i - 1);
+            response = response | (ctoi(payload[payloadIndex]) << bitsOffset);
+        }
 
-		// It is useful to have the response bytes
-		// broken-out because some PID algorithms (standard
-		// and custom) require special operations for each
-		// byte returned
-		responseByte_0 = response & 0xFF;
-		responseByte_1 = (response >> 8) & 0xFF;
-		responseByte_2 = (response >> 16) & 0xFF;
-		responseByte_3 = (response >> 24) & 0xFF;
-		responseByte_4 = (response >> 32) & 0xFF;
-		responseByte_5 = (response >> 40) & 0xFF;
-		responseByte_6 = (response >> 48) & 0xFF;
-		responseByte_7 = (response >> 56) & 0xFF;
+        // It is useful to have the response bytes
+        // broken-out because some PID algorithms (standard
+        // and custom) require special operations for each
+        // byte returned
+        responseByte_0 = response & 0xFF;
+        responseByte_1 = (response >> 8) & 0xFF;
+        responseByte_2 = (response >> 16) & 0xFF;
+        responseByte_3 = (response >> 24) & 0xFF;
+        responseByte_4 = (response >> 32) & 0xFF;
+        responseByte_5 = (response >> 40) & 0xFF;
+        responseByte_6 = (response >> 48) & 0xFF;
+        responseByte_7 = (response >> 56) & 0xFF;
 
-		if (debugMode)
-		{
-			Serial.println(F("64-bit response: "));
-			Serial.print(F("\tresponseByte_0: "));
-			Serial.println(responseByte_0);
-			Serial.print(F("\tresponseByte_1: "));
-			Serial.println(responseByte_1);
-			Serial.print(F("\tresponseByte_2: "));
-			Serial.println(responseByte_2);
-			Serial.print(F("\tresponseByte_3: "));
-			Serial.println(responseByte_3);
-			Serial.print(F("\tresponseByte_4: "));
-			Serial.println(responseByte_4);
-			Serial.print(F("\tresponseByte_5: "));
-			Serial.println(responseByte_5);
-			Serial.print(F("\tresponseByte_6: "));
-			Serial.println(responseByte_6);
-			Serial.print(F("\tresponseByte_7: "));
-			Serial.println(responseByte_7);
-		}
+        if (debugMode)
+        {
+            Serial.println(F("64-bit response: "));
+            Serial.print(F("\tresponseByte_0: "));
+            Serial.println(responseByte_0);
+            Serial.print(F("\tresponseByte_1: "));
+            Serial.println(responseByte_1);
+            Serial.print(F("\tresponseByte_2: "));
+            Serial.println(responseByte_2);
+            Serial.print(F("\tresponseByte_3: "));
+            Serial.println(responseByte_3);
+            Serial.print(F("\tresponseByte_4: "));
+            Serial.println(responseByte_4);
+            Serial.print(F("\tresponseByte_5: "));
+            Serial.println(responseByte_5);
+            Serial.print(F("\tresponseByte_6: "));
+            Serial.println(responseByte_6);
+            Serial.print(F("\tresponseByte_7: "));
+            Serial.println(responseByte_7);
+        }
 
-		return response;
-	}
+        return response;
+    }
 
-	if (debugMode)
-		Serial.println(F("Response not detected"));
+    if (debugMode)
+        Serial.println(F("Response not detected"));
 
-	return 0;
+    return 0;
 }
-
-
-
 
 /*
  void ELM327::printError()
@@ -2700,35 +2419,32 @@ uint64_t ELM327::findResponse()
 */
 void ELM327::printError()
 {
-	Serial.print(F("Received: "));
-	Serial.println(payload);
+    Serial.print(F("Received: "));
+    Serial.println(payload);
 
-	if (nb_rx_state == ELM_SUCCESS)
-		Serial.println(F("ELM_SUCCESS"));
-	else if (nb_rx_state == ELM_NO_RESPONSE)
-		Serial.println(F("ERROR: ELM_NO_RESPONSE"));
-	else if (nb_rx_state == ELM_BUFFER_OVERFLOW)
-		Serial.println(F("ERROR: ELM_BUFFER_OVERFLOW"));
-	else if (nb_rx_state == ELM_UNABLE_TO_CONNECT)
-		Serial.println(F("ERROR: ELM_UNABLE_TO_CONNECT"));
-	else if (nb_rx_state == ELM_NO_DATA)
-		Serial.println(F("ERROR: ELM_NO_DATA"));
-	else if (nb_rx_state == ELM_STOPPED)
-		Serial.println(F("ERROR: ELM_STOPPED"));
-	else if (nb_rx_state == ELM_TIMEOUT)
-		Serial.println(F("ERROR: ELM_TIMEOUT"));
-	else if (nb_rx_state == ELM_BUFFER_OVERFLOW)
-		Serial.println(F("ERROR: BUFFER OVERFLOW"));
-	else if (nb_rx_state == ELM_GENERAL_ERROR)
-		Serial.println(F("ERROR: ELM_GENERAL_ERROR"));
-	else
-		Serial.println(F("No error detected"));
+    if (nb_rx_state == ELM_SUCCESS)
+        Serial.println(F("ELM_SUCCESS"));
+    else if (nb_rx_state == ELM_NO_RESPONSE)
+        Serial.println(F("ERROR: ELM_NO_RESPONSE"));
+    else if (nb_rx_state == ELM_BUFFER_OVERFLOW)
+        Serial.println(F("ERROR: ELM_BUFFER_OVERFLOW"));
+    else if (nb_rx_state == ELM_UNABLE_TO_CONNECT)
+        Serial.println(F("ERROR: ELM_UNABLE_TO_CONNECT"));
+    else if (nb_rx_state == ELM_NO_DATA)
+        Serial.println(F("ERROR: ELM_NO_DATA"));
+    else if (nb_rx_state == ELM_STOPPED)
+        Serial.println(F("ERROR: ELM_STOPPED"));
+    else if (nb_rx_state == ELM_TIMEOUT)
+        Serial.println(F("ERROR: ELM_TIMEOUT"));
+    else if (nb_rx_state == ELM_BUFFER_OVERFLOW)
+        Serial.println(F("ERROR: BUFFER OVERFLOW"));
+    else if (nb_rx_state == ELM_GENERAL_ERROR)
+        Serial.println(F("ERROR: ELM_GENERAL_ERROR"));
+    else
+        Serial.println(F("No error detected"));
 
-	delay(100);
+    delay(100);
 }
-
-
-
 
 /*
  float ELM327::batteryVoltage(void)
@@ -2747,39 +2463,36 @@ void ELM327::printError()
 */
 float ELM327::batteryVoltage(void)
 {
-	if (nb_query_state == SEND_COMMAND)
-	{
-		sendCommand(READ_VOLTAGE);
-		nb_query_state = WAITING_RESP;
-	}
-	else if (nb_query_state == WAITING_RESP)
-	{
-		get_response();
-		if (nb_rx_state == ELM_SUCCESS)
-		{
-			nb_query_state = SEND_COMMAND; // Reset the query state machine for next command
-			return (float)strtod(payload, NULL);
-		}
-		else if (nb_rx_state != ELM_GETTING_MSG)
-			nb_query_state = SEND_COMMAND; // Error or timeout, so reset the query state machine for next command
-	}
-	return 0.0;
+    if (nb_query_state == SEND_COMMAND)
+    {
+        sendCommand(READ_VOLTAGE);
+        nb_query_state = WAITING_RESP;
+    }
+    else if (nb_query_state == WAITING_RESP)
+    {
+        get_response();
+        if (nb_rx_state == ELM_SUCCESS)
+        {
+            nb_query_state = SEND_COMMAND; // Reset the query state machine for next command
+            return (float)strtod(payload, NULL);
+        }
+        else if (nb_rx_state != ELM_GETTING_MSG)
+            nb_query_state = SEND_COMMAND; // Error or timeout, so reset the query state machine for next command
+    }
+    return 0.0;
 }
-
-
-
 
 /*
  int8_t ELM327::get_vin_blocking(char *vin)
 
  Description:
  ------------
-	* Read Vehicle Identification Number (VIN). This is a blocking function.
+    * Read Vehicle Identification Number (VIN). This is a blocking function.
 
  Inputs:
  -------
-	* char vin[] - pointer to c-string in which to store VIN
-		Note: (allocate memory for 18 character c-string in calling function)
+    * char vin[] - pointer to c-string in which to store VIN
+        Note: (allocate memory for 18 character c-string in calling function)
 
  Return:
  -------
@@ -2787,56 +2500,59 @@ float ELM327::batteryVoltage(void)
 */
 int8_t ELM327::get_vin_blocking(char vin[])
 {
-	char temp[3] = {0};
-	char *idx;
-	uint8_t vin_counter = 0;
-	uint8_t ascii_val;
+    char temp[3] = {0};
+    char *idx;
+    uint8_t vin_counter = 0;
+    uint8_t ascii_val;
 
-	if (debugMode)
-		Serial.println("Getting VIN...");
-	sendCommand("0902");  // VIN is command 0902
-	while (get_response() == ELM_GETTING_MSG);
+    if (debugMode)
+        Serial.println("Getting VIN...");
+    sendCommand("0902"); // VIN is command 0902
+    while (get_response() == ELM_GETTING_MSG)
+        ;
 
-	// strcpy(payload, "0140:4902013144341:475030305235352:42313233343536");
-	if (nb_rx_state == ELM_SUCCESS)
-	{
-		memset(vin, 0, 18);
-		// **** Decoding ****
-		if (strstr(payload, "490201"))
-		{
-			// OBD scanner provides this multiline response:
-			// 014                        ==> 0x14 = 20 bytes following
-			// 0: 49 02 01 31 44 34       ==> 49 02 = Header. 01 = 1 VIN number in message. 31, 44, 34 = First 3 VIN digits
-			// 1: 47 50 30 30 52 35 35    ==> 47->35 next 7 VIN digits
-			// 2: 42 31 32 33 34 35 36    ==> 42->36 next 7 VIN digits
-			//
-			// The resulitng payload buffer is:
-			// "0140:4902013144341:475030305235352:42313233343536" ==> VIN="1D4GP00R55B123456" (17-digits)
-			idx = strstr(payload, "490201") + 6;  // Pointer to first ASCII code digit of first VIN digit
-			// Loop over each pair of ASCII code digits. 17 VIN digits + 2 skipped line numbers = 19 loops
-			for (int i = 0; i < (19 * 2); i += 2) {
-				temp[0] = *(idx + i);      // Get first digit of ASCII code
-				temp[1] = *(idx + i + 1);  // Get second digit of ASCII code
-				// No need to add string termination, temp[3] always == 0
-				if (strstr(temp, ":")) continue; // Skip the second "1:" and third "2:" line numbers
-				ascii_val = strtol(temp, 0, 16);                // Convert ASCII code to integer
-				sprintf(vin + vin_counter++, "%c", ascii_val);  // Convert ASCII code integer back to character
-				// Serial.printf("Chars %s, ascii_val=%d[dec] 0x%02hhx[hex] ==> VIN=%s\n", temp, ascii_val, ascii_val, vin);
-			}
-		}
-		if (debugMode)
-		{
-			Serial.print("VIN: ");
-			Serial.println(vin);
-		}
-	}
-	else
-	{
-		if (debugMode)
-		{
-			Serial.println("No VIN response");
-			printError();
-		}
-	}
-	return nb_rx_state;
+    // strcpy(payload, "0140:4902013144341:475030305235352:42313233343536");
+    if (nb_rx_state == ELM_SUCCESS)
+    {
+        memset(vin, 0, 18);
+        // **** Decoding ****
+        if (strstr(payload, "490201"))
+        {
+            // OBD scanner provides this multiline response:
+            // 014                        ==> 0x14 = 20 bytes following
+            // 0: 49 02 01 31 44 34       ==> 49 02 = Header. 01 = 1 VIN number in message. 31, 44, 34 = First 3 VIN digits
+            // 1: 47 50 30 30 52 35 35    ==> 47->35 next 7 VIN digits
+            // 2: 42 31 32 33 34 35 36    ==> 42->36 next 7 VIN digits
+            //
+            // The resulitng payload buffer is:
+            // "0140:4902013144341:475030305235352:42313233343536" ==> VIN="1D4GP00R55B123456" (17-digits)
+            idx = strstr(payload, "490201") + 6; // Pointer to first ASCII code digit of first VIN digit
+            // Loop over each pair of ASCII code digits. 17 VIN digits + 2 skipped line numbers = 19 loops
+            for (int i = 0; i < (19 * 2); i += 2)
+            {
+                temp[0] = *(idx + i);     // Get first digit of ASCII code
+                temp[1] = *(idx + i + 1); // Get second digit of ASCII code
+                // No need to add string termination, temp[3] always == 0
+                if (strstr(temp, ":"))
+                    continue;                                  // Skip the second "1:" and third "2:" line numbers
+                ascii_val = strtol(temp, 0, 16);               // Convert ASCII code to integer
+                sprintf(vin + vin_counter++, "%c", ascii_val); // Convert ASCII code integer back to character
+                                                               // Serial.printf("Chars %s, ascii_val=%d[dec] 0x%02hhx[hex] ==> VIN=%s\n", temp, ascii_val, ascii_val, vin);
+            }
+        }
+        if (debugMode)
+        {
+            Serial.print("VIN: ");
+            Serial.println(vin);
+        }
+    }
+    else
+    {
+        if (debugMode)
+        {
+            Serial.println("No VIN response");
+            printError();
+        }
+    }
+    return nb_rx_state;
 }
