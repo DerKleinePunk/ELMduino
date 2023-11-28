@@ -137,8 +137,9 @@ bool ELM327::initializeELM(const char &protocol, const byte &dataTimeout)
 
 	if ((int)protocol == 0)
 	{	
-		sprintf(command, TRY_PROT_H_AUTO_SEARCH, protocol); 
-		
+        // Tell the ELM327 to do an auto protocol search. If a valid protocol is found, it will be saved to memory.
+        // Some ELM clones may not have memory enabled and thus will perform the search every time.
+        sprintf(command, SET_PROTOCOL_TO_AUTO_H_SAVE, protocol); 
 		if (sendCommand_Blocking(command) == ELM_SUCCESS)
 		{ 
 			if (strstr(payload, "OK") != NULL)
@@ -149,11 +150,13 @@ bool ELM327::initializeELM(const char &protocol, const byte &dataTimeout)
 			    timeout_ms = 30000;
 				
                 if (sendCommand_Blocking("0100") == ELM_SUCCESS) 
-				{	
+                {	
                     timeout_ms = prevTimeout;
-				    connected = true;
-				    return connected;
-				}
+                    connected = true;
+                    return connected;
+                }
+
+                timeout_ms = prevTimeout;              
 			}
 		}
 	}
