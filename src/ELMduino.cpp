@@ -431,7 +431,7 @@ int8_t ELM327::nextIndex(char const *str,
 }
 
 /*
- void ELM327::conditionResponse(const uint8_t &numExpectedBytes, const float &scaleFactor, const float &bias)
+ double ELM327::conditionResponse(const uint8_t &numExpectedBytes, const float &scaleFactor, const float &bias)
 
  Description:
  ------------
@@ -446,9 +446,9 @@ int8_t ELM327::nextIndex(char const *str,
 
  Return:
  -------
-  * float - Converted numerical value
+  * double - Converted numerical value
 */
-double ELM327::conditionResponse(const uint8_t &numExpectedBytes, const float &scaleFactor, const float &bias)
+double ELM327::conditionResponse(const uint8_t &numExpectedBytes, const double &scaleFactor, const float &bias)
 {
     uint8_t numExpectedPayChars = numExpectedBytes * 2;
     uint8_t payCharDiff = numPayChars - numExpectedPayChars;
@@ -513,7 +513,7 @@ double ELM327::conditionResponse(const uint8_t &numExpectedBytes, const float &s
         }
         else 
         {
-            return ((double)(response >> (4 * payCharDiff)) * scaleFactor) + bias;
+            return ((response >> (4 * payCharDiff)) * scaleFactor) + bias;
         }
         
     }
@@ -613,7 +613,7 @@ bool ELM327::queryPID(char queryStr[])
 }
 
 /*
- float ELM327::processPID(const uint8_t& service, const uint16_t& pid, const uint8_t& num_responses, const uint8_t& numExpectedBytes, const float& scaleFactor, const float& bias)
+ double ELM327::processPID(const uint8_t& service, const uint16_t& pid, const uint8_t& num_responses, const uint8_t& numExpectedBytes, const float& scaleFactor, const float& bias)
 
  Description:
  ------------
@@ -635,7 +635,7 @@ bool ELM327::queryPID(char queryStr[])
  -------
   * float - The PID value if successfully received, else 0.0
 */
-double ELM327::processPID(const uint8_t &service, const uint16_t &pid, const uint8_t &num_responses, const uint8_t &numExpectedBytes, const float &scaleFactor, const float &bias)
+double ELM327::processPID(const uint8_t &service, const uint16_t &pid, const uint8_t &num_responses, const uint8_t &numExpectedBytes, const double &scaleFactor, const float &bias)
 {
     if (nb_query_state == SEND_COMMAND)
     {
