@@ -246,15 +246,15 @@ void ELM327::formatQueryArray(uint8_t service, uint16_t pid, uint8_t num_respons
 
         longQuery = true;
 
-        query[2] = ((pid >> 12)  & 0xF) + '0';
-        query[3] = ((pid >> 8)   & 0xF) + '0';
-        query[4] = ((pid >> 4)   & 0xF) + '0';
-        query[5] =  (pid         & 0xF) + '0';
+        query[2] = ((pid >> 12) & 0xF) + '0';
+        query[3] = ((pid >> 8) & 0xF) + '0';
+        query[4] = ((pid >> 4) & 0xF) + '0';
+        query[5] = (pid & 0xF) + '0';
 
         if (num_responses > 0xF)
         {
             query[6] = ((num_responses >> 4) & 0xF) + '0';
-            query[7] = ( num_responses       & 0xF) + '0';
+            query[7] = (num_responses & 0xF) + '0';
             query[8] = '\0';
 
             upper(query, 8);
@@ -276,12 +276,12 @@ void ELM327::formatQueryArray(uint8_t service, uint16_t pid, uint8_t num_respons
         longQuery = false;
 
         query[2] = ((pid >> 4) & 0xF) + '0';
-        query[3] =  (pid       & 0xF) + '0';
+        query[3] = (pid & 0xF) + '0';
 
         if (num_responses > 0xF)
         {
             query[4] = ((num_responses >> 4) & 0xF) + '0';
-            query[5] = ( num_responses       & 0xF) + '0';
+            query[5] = (num_responses & 0xF) + '0';
             query[6] = '\0';
             query[7] = '\0';
             query[8] = '\0';
@@ -481,12 +481,11 @@ double ELM327::conditionResponse(const uint8_t &numExpectedBytes, const double &
         {
             return response;
         }
-        else 
+        else
         {
             return (response * scaleFactor) + bias;
         }
     }
-        
 
     // If there were more payload bytes returned than we expected, test the first and last bytes in the
     // returned payload and see which gives us a higher value. Sometimes ELM327's return leading zeros
@@ -511,11 +510,10 @@ double ELM327::conditionResponse(const uint8_t &numExpectedBytes, const double &
         {
             return (response >> (4 * payCharDiff));
         }
-        else 
+        else
         {
             return ((response >> (4 * payCharDiff)) * scaleFactor) + bias;
         }
-        
     }
     else
     {
@@ -526,7 +524,7 @@ double ELM327::conditionResponse(const uint8_t &numExpectedBytes, const double &
         {
             return response;
         }
-        else 
+        else
         {
             return (response * scaleFactor) + bias;
         }
@@ -650,7 +648,7 @@ double ELM327::processPID(const uint8_t &service, const uint16_t &pid, const uin
             nb_query_state = SEND_COMMAND; // Reset the query state machine for next command
 
             findResponse();
-           
+
             return conditionResponse(numExpectedBytes, scaleFactor, bias);
         }
         else if (nb_rx_state != ELM_GETTING_MSG)
@@ -2539,8 +2537,13 @@ float ELM327::batteryVoltage(void)
         get_response();
         if (nb_rx_state == ELM_SUCCESS)
         {
-            nb_query_state = SEND_COMMAND;       // Reset the query state machine for next command
-            payload[strlen(payload) - 1] = '\0'; // remove the last char ("V") from the payload value
+            nb_query_state = SEND_COMMAND;         // Reset the query state machine for next command
+            payload[strlen(payload) - 1] = '\0';   // Remove the last char ("V") from the payload value
+            char *start = strstr(payload, "ATRV"); // Get start of voltage value
+            if (start != NULL)
+            {
+                payload = start + 4;
+            }
             return (float)strtod(payload, NULL);
         }
         else if (nb_rx_state != ELM_GETTING_MSG)
@@ -2729,10 +2732,10 @@ void ELM327::currentDTCCodes(const bool &isBlocking)
             // See p. 31 of ELM327 datasheet for details and lookup table of code types.
 
             uint8_t codesFound = strlen(payload) / 8; // Each code found returns 8 chars starting with "43"
-            idx = strstr(payload, "43") + 4;       // Pointer to first DTC code digit (third char in the response)
+            idx = strstr(payload, "43") + 4;          // Pointer to first DTC code digit (third char in the response)
 
-            if (codesFound > DTC_MAX_CODES)        // I don't think the ELM is capable of returning
-            {                                      // more than 0xF (16) codes, but just in case...
+            if (codesFound > DTC_MAX_CODES) // I don't think the ELM is capable of returning
+            {                               // more than 0xF (16) codes, but just in case...
                 codesFound = DTC_MAX_CODES;
                 Serial.print("DTC response truncated at ");
                 Serial.print(DTC_MAX_CODES);
@@ -2852,7 +2855,6 @@ void ELM327::currentDTCCodes(const bool &isBlocking)
     }
 }
 
-
 /*
  bool ELM327::isPidSupported(uint8_t pid)
 
@@ -2865,11 +2867,11 @@ void ELM327::currentDTCCodes(const bool &isBlocking)
 
  Inputs:
  -------
-  * uint8_t pid - the PID to check for support. 
+  * uint8_t pid - the PID to check for support.
 
  Return:
  -------
-  * bool - Whether or not the queried PID is supported by the ECU. 
+  * bool - Whether or not the queried PID is supported by the ECU.
 */
 bool ELM327::isPidSupported(uint8_t pid)
 {
@@ -2896,10 +2898,10 @@ bool ELM327::isPidSupported(uint8_t pid)
         supportedPIDs_61_80();
         pid = (pid - SUPPORTED_PIDS_61_80);
         break;
-    
+
     default:
         break;
-    }      
+    }
 
     if (nb_rx_state == ELM_SUCCESS)
     {
